@@ -1,0 +1,31 @@
+{
+  "name": "ui-bar",
+  "version": "1.0.0",
+  "description": "MCP/CLI that flags generated Next/React UI.",
+  "type": "module",
+  "bin": {
+    "ui-bar": "./dist/cli.js"
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "tsc",
+    "test": "tsx --test test/scan.test.ts",
+    "start": "node dist/cli.js"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roiyot26/ui-bar.git"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
