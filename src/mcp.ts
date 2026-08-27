@@ -6,12 +6,12 @@ import { formatReport, scan } from "./scan.js";
 
 const server = new McpServer({
   name: "ui-bar",
-  version: "1.0.0",
+  version: "0.1.0",
 });
 
 server.tool(
   "scan",
-  "Flag generated Next/React UI. Numbered file:line violations. No scores. Same rules as the CLI.",
+  "Flag generated Next/React UI. file:line smell. No scores. Same rules as the CLI.",
   { path: z.string().describe("File or directory to scan") },
   async ({ path }) => ({
     content: [
