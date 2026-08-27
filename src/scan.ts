@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { relative, resolve, sep } from "node:path";
 
 export type Finding = { file: string; line: number; smell: string };
 
@@ -8,51 +8,43 @@ const CODE = /\.(tsx|ts|jsx|js|css)$/;
 const SCALE = new Set(["0", "1", "2", "4", "8", "12", "16", "24", "32", "48", "64"]);
 const SPACING =
   /\b(?:p|px|py|pt|pr|pb|pl|m|mx|my|mt|mr|mb|ml|gap|gap-x|gap-y)-(\d+(?:\.\d+)?)\b/g;
+const CTA =
+  /unlock your potential|welcome to the future|get started|learn more|book a demo/i;
 
-export function scan(root: string): Finding[] {
-  const files = listFiles(root);
+export function scan(target: string): Finding[] {
+  const absTarget = resolve(target);
+  const files = listFiles(absTarget);
   const findings: Finding[] = [];
-  const inter: Finding[] = [];
-  const purple: Finding[] = [];
-  const cards: Finding[] = [];
 
   for (const abs of files) {
-    const rel = relative(root, abs).split(sep).join("/");
+    const rel = displayPath(abs);
     const text = readFileSync(abs, "utf8");
     const lines = text.split(/\r?\n/);
-
-    if (/(^|\/)layout\.(t|j)sx?$/.test(rel)) {
-      const idx = lines.findIndex((l) => /['"]use client['"]/.test(l));
-      if (idx !== -1) {
-        findings.push({
-          file: rel,
-          line: idx + 1,
-          smell: '"use client" sprayed on layouts',
-        });
-      }
-    }
-
-    const hasUnsplash = /unsplash\.com/i.test(text);
-    const hasGradient = /bg-gradient|from-black\/|to-black\/|gradient-to|overlay/i.test(
-      text,
-    );
+    const radiusLines: number[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const n = i + 1;
 
       if (/\bInter\b/.test(line) && /font|next\/font/i.test(text)) {
-        inter.push({ file: rel, line: n, smell: "Inter+purple+3 cards" });
+        findings.push({ file: rel, line: n, smell: "Inter-by-default" });
       }
+
       if (
-        /from-purple-|to-purple-|via-purple-|from-violet-|to-violet-|bg-purple-|from-indigo-|#7c3aed|#8b5cf6|#6366f1/.test(
+        /bg-gradient|from-purple-|to-purple-|via-purple-|from-violet-|to-violet-|from-indigo-|#7c3aed|#8b5cf6/.test(
           line,
-        )
+        ) ||
+        (/unsplash\.com/i.test(line) && /bg-gradient|from-black\/|overlay/i.test(text))
       ) {
-        purple.push({ file: rel, line: n, smell: "Inter+purple+3 cards" });
+        findings.push({ file: rel, line: n, smell: "gradient soup" });
       }
-      if (/\bgrid-cols-3\b/.test(line)) {
-        cards.push({ file: rel, line: n, smell: "Inter+purple+3 cards" });
+
+      if (/\brounded-lg\b|\brounded-\[8px\]/.test(line)) {
+        radiusLines.push(n);
+      }
+
+      if (CTA.test(line)) {
+        findings.push({ file: rel, line: n, smell: "generic CTAs" });
       }
 
       if (
@@ -75,9 +67,11 @@ export function scan(root: string): Finding[] {
       if (off.length >= 2) {
         findings.push({ file: rel, line: n, smell: "random Tailwind spacing" });
       }
+    }
 
-      if (hasUnsplash && hasGradient && /unsplash\.com/i.test(line)) {
-        findings.push({ file: rel, line: n, smell: "Unsplash-hero-with-gradient" });
+    if (radiusLines.length >= 3) {
+      for (const n of radiusLines) {
+        findings.push({ file: rel, line: n, smell: "8px radius everywhere" });
       }
     }
 
@@ -91,10 +85,6 @@ export function scan(root: string): Finding[] {
     }
   }
 
-  if (inter.length && purple.length && cards.length) {
-    findings.push(cards[0], purple[0], inter[0]);
-  }
-
   return dedupe(findings).sort((a, b) =>
     a.file === b.file ? a.line - b.line : a.file.localeCompare(b.file),
   );
@@ -102,7 +92,13 @@ export function scan(root: string): Finding[] {
 
 export function formatReport(findings: Finding[]): string {
   if (!findings.length) return "clean";
-  return findings.map((f) => `${f.file}:${f.line}  ${f.smell}`).join("\n");
+  return findings
+    .map((f, i) => `${i + 1}. ${f.file}:${f.line}  ${f.smell}`)
+    .join("\n");
+}
+
+function displayPath(abs: string): string {
+  return relative(process.cwd(), abs).split(sep).join("/") || abs;
 }
 
 function sectionOrder(lines: string[]): number | null {
@@ -120,18 +116,21 @@ function sectionOrder(lines: string[]): number | null {
       if (re.test(lines[i])) hits.push({ key, line: i + 1 });
     }
   }
-  const keys = hits.map((h) => h.key).join(",");
-  if (keys === "hero,cards,testimonial,pricing,faq") return hits[0].line;
+  if (hits.map((h) => h.key).join(",") === "hero,cards,testimonial,pricing,faq") {
+    return hits[0].line;
+  }
   return null;
 }
 
-function listFiles(dir: string): string[] {
+function listFiles(target: string): string[] {
+  const st = statSync(target);
+  if (st.isFile()) return CODE.test(target) ? [target] : [];
   const out: string[] = [];
-  for (const name of readdirSync(dir)) {
+  for (const name of readdirSync(target)) {
     if (SKIP_DIRS.has(name)) continue;
-    const abs = join(dir, name);
-    const st = statSync(abs);
-    if (st.isDirectory()) out.push(...listFiles(abs));
+    const abs = resolve(target, name);
+    const child = statSync(abs);
+    if (child.isDirectory()) out.push(...listFiles(abs));
     else if (CODE.test(name) && !name.endsWith(".d.ts")) out.push(abs);
   }
   return out;

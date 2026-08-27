@@ -11,8 +11,8 @@ const server = new McpServer({
 
 server.tool(
   "scan",
-  "Flag generated Next/React UI smells in a directory. Returns file:line and the smell. No scores.",
-  { path: z.string().describe("Directory to scan") },
+  "Flag generated Next/React UI. Numbered file:line violations. No scores. Same rules as the CLI.",
+  { path: z.string().describe("File or directory to scan") },
   async ({ path }) => ({
     content: [
       {
